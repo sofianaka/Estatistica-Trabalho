@@ -34,11 +34,17 @@ Após ativar o ambiente virtual, instale as bibliotecas necessárias:
     ```bash
     pip install seaborn
     ```
+4. **Spicy** - Para Calculos :
+    ```bash
+    pip install scipy
+
+    ```
 Até agora foram realizadas essas analises :
 
 - **Média da Perda de Cobertura Vegetal**: 
 - **Mediana da Perda de Cobertura Vegetal**: 
 - **Moda da Perda de Cobertura Vegetal**: 
-- **Gráfico de Distribuição de Frequências**: 
+- **Gráfico de Distribuição de Frequências**:
+- **O modulo 2.1 foi finalizado no arquivo variacao_Amostra.py**:
 
 
