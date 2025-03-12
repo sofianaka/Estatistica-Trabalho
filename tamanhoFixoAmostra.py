@@ -2,75 +2,100 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as stats
+from scipy.stats import shapiro
 
-
+# Carregar dados
 df = pd.read_csv("treecover_loss__ha.csv")
-
-print("Colunas disponíveis:", df.columns)
-
 dados = df['umd_tree_cover_loss__ha'].dropna().values
 
-# (01) Definir tamanho da amostra (0,5% ou 1% da população) e garantir pelo menos 2 elementos
-tamanho_populacao = len(dados)
-tamanho_amostra = max(2, int(0.005 * tamanho_populacao))  # 0,5% da população, mínimo 2
-num_amostras = min(200, tamanho_populacao // tamanho_amostra)  # (02) Garante 100% da população
-
-print(f"Amostras de tamanho fixo com reposição, com número de elementos de {tamanho_amostra}")
-print(f"Número total de amostras geradas: {num_amostras}")
-
-# (01) Gerar amostras com reposição
-amostras = [np.random.choice(dados, size=tamanho_amostra, replace=True) for _ in range(num_amostras)]
-
-# Calcular estatísticas populacionais
+# Estatísticas populacionais
 media_pop = np.mean(dados)
 variancia_pop = np.var(dados, ddof=0)
 desvio_padrao_pop = np.std(dados, ddof=0)
 
-print(f"Média Populacional: {media_pop:.2f}")
-print(f"Variância Populacional: {variancia_pop:.2f}")
-print(f"Desvio Padrão Populacional: {desvio_padrao_pop:.2f}")
+# Ajuste no tamanho da amostra e número de amostras
+tamanho_amostra = max(10, int(0.01 * len(dados)))
+num_amostras = min(100 if tamanho_amostra == int(0.01 * len(dados)) else 200, len(dados) // tamanho_amostra)
 
-# (03) Calcular estatísticas amostrais
+# Gerar amostras aleatórias
+amostras = [np.random.choice(dados, size=tamanho_amostra, replace=True) for _ in range(num_amostras)]
+
+# Estatísticas das médias amostrais
 medias_amostrais = np.array([np.mean(amostra) for amostra in amostras])
-variancias_amostrais = np.array([np.var(amostra, ddof=1) for amostra in amostras])
-desvios_amostrais = np.array([np.std(amostra, ddof=1) for amostra in amostras])
+somas_amostrais = np.array([np.sum(amostra) for amostra in amostras])
 
-print(f"Esperança das Médias Amostrais: {np.mean(medias_amostrais):.2f}")
-print(f"Esperança das Variâncias Amostrais: {np.mean(variancias_amostrais):.2f}")
-print(f"Esperança dos Desvios Padrão Amostrais: {np.mean(desvios_amostrais):.2f}")
+# Cálculo da esperança das estatísticas amostrais
+esperanca_medias = np.mean(medias_amostrais)
+esperanca_variancias = np.mean([np.var(amostra, ddof=1) for amostra in amostras])
+esperanca_desvio_padrao = np.mean([np.std(amostra, ddof=1) for amostra in amostras])
 
-# (04) Soma das amostras e estatísticas
-somas_amostras = np.array([np.sum(amostra) for amostra in amostras])
-print(f"Média das Somas: {np.mean(somas_amostras):.2f}")
-print(f"Variância das Somas: {np.var(somas_amostras, ddof=1):.2f}")
-print(f"Desvio Padrão das Somas: {np.std(somas_amostras, ddof=1):.2f}")
+# Estatísticas das somas das amostras
+media_somas = np.mean(somas_amostrais)
+variancia_somas = np.var(somas_amostrais, ddof=1)
+desvio_somas = np.std(somas_amostrais, ddof=1)
 
-# (05) Gráfico da distribuição das médias amostrais
-plt.hist(medias_amostrais, bins=15, density=True, alpha=0.6, color='b', edgecolor='black')
+# Comparação com soma das medidas das amostras
+soma_medias = esperanca_medias * tamanho_amostra
+soma_variancias = esperanca_variancias * tamanho_amostra
+soma_desvio_padrao = esperanca_desvio_padrao * np.sqrt(tamanho_amostra)
+
+# Intervalo de Confiança
+nivel_confianca = 0.95
+t = stats.t.ppf(1 - (1 - nivel_confianca) / 2, df=tamanho_amostra-1)
+erro_padrao = desvio_padrao_pop / np.sqrt(tamanho_amostra)
+margem_erro = t * erro_padrao
+intervalo_confianca = (media_pop - margem_erro, media_pop + margem_erro)
+
+# Verificando se as médias amostrais estão dentro do intervalo de confiança
+contagem_dentro_ic = sum(1 for media in medias_amostrais if intervalo_confianca[0] <= media <= intervalo_confianca[1])
+proporcao_dentro_ic = (contagem_dentro_ic / num_amostras) * 100
+
+# Teste de Normalidade das Médias Amostrais
+estatistica, p_valor = shapiro(medias_amostrais)
+
+# Gráficos
+plt.figure(figsize=(12, 5))
+
+plt.subplot(1, 2, 1)
+plt.hist(medias_amostrais, bins=20, density=True, alpha=0.6, color='b', edgecolor='black')
 x = np.linspace(min(medias_amostrais), max(medias_amostrais), 100)
 plt.plot(x, stats.norm.pdf(x, np.mean(medias_amostrais), np.std(medias_amostrais)), color='black')
 plt.xlabel('Média Amostral')
 plt.ylabel('Densidade')
-plt.title('Distribuição das Médias Amostrais (Teorema Central do Limite)')
+plt.title('Distribuição das Médias Amostrais')
+
+plt.subplot(1, 2, 2)
+plt.hist(somas_amostrais, bins=20, density=True, alpha=0.6, color='g', edgecolor='black')
+x = np.linspace(min(somas_amostrais), max(somas_amostrais), 100)
+plt.plot(x, stats.norm.pdf(x, np.mean(somas_amostrais), np.std(somas_amostrais)), color='black')
+plt.xlabel('Soma das Amostras')
+plt.ylabel('Densidade')
+plt.title('Distribuição das Somas das Amostras')
+
+plt.tight_layout()
 plt.show()
 
-# (06) Intervalo de confiança para a média amostral
-nivel_confianca = 0.95
-z = stats.norm.ppf(1 - (1 - nivel_confianca) / 2)
-margem_erro = z * (desvio_padrao_pop / np.sqrt(tamanho_amostra))
-intervalo_confianca = (float(media_pop - margem_erro), float(media_pop + margem_erro))
-print(f"Intervalo de Confiança: {intervalo_confianca}")
-
-# (07) Contar quantas médias amostrais estão dentro do intervalo de confiança
-dentro_ic = sum(1 for media in medias_amostrais if intervalo_confianca[0] <= media <= intervalo_confianca[1])
-proporcao_dentro_ic = (dentro_ic / num_amostras) * 100
-
-# (08) Verificar se o intervalo contém a média populacional
+# Exibir Resultados
+print(f"Intervalo de Confiança (t-Student): {intervalo_confianca}")
 print(f"Proporção de Médias dentro do IC: {proporcao_dentro_ic:.2f}%")
+print(f"Esperança das Médias Amostrais: {esperanca_medias:.2f}")
+print(f"Esperança das Variâncias Amostrais: {esperanca_variancias:.2f}")
+print(f"Esperança dos Desvios Padrão Amostrais: {esperanca_desvio_padrao:.2f}")
+print(f"Média das Somas: {media_somas:.2f}")
+print(f"Variância das Somas: {variancia_somas:.2f}")
+print(f"Desvio Padrão das Somas: {desvio_somas:.2f}")
+print("\nComparação com a soma das medidas das amostras:")
+print(f"Soma das Médias Amostrais: {soma_medias:.2f}")
+print(f"Soma das Variâncias Amostrais: {soma_variancias:.2f}")
+print(f"Soma dos Desvios Padrão Amostrais: {soma_desvio_padrao:.2f}")
+print("\nTeste de Normalidade Shapiro-Wilk para as Médias Amostrais:")
+print(f"Estatística: {estatistica:.4f}, p-valor: {p_valor:.4f}")
+if p_valor > 0.05:
+    print("Não rejeitamos a hipótese nula: As médias amostrais seguem uma distribuição normal.")
+else:
+    print("Rejeitamos a hipótese nula: As médias amostrais não seguem uma distribuição normal.")
 
-# (09) Comparação com o nível de confiança desejado
-diferenca_conf = abs(proporcao_dentro_ic - (nivel_confianca * 100))
-print(f"Diferença entre a proporção observada e o nível de confiança: {diferenca_conf:.2f}%")
+
 
 
 
